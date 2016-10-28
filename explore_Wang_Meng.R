@@ -5,12 +5,10 @@ explore <- function(data, plotswitch = "off", threshold = 0, bins = NULL) {
   Summary_num <- summary_num (data)
   R_squared <- r_squared (data)
   Pearson_coe <- pearson_coe (data, threshold)
-  
-  Num <- data[sapply(data, is.numeric)]
-  plotsBlue <- plotsNum (Num, plotswitch, bins)
-  Plot_gray <- plot_gray (data, plotswitch)
-  
-  return (c(Freq_table, Summary_num, R_squared, Pearson_coe, plotsBlue, Plot_gray))
+  plot_gray (data, plotswitch)
+  num <- data[sapply(data, is.numeric)]
+  plot_density_count(num,plotswitch,vector)
+  return (list(Freq_table, Summary_num, R_squared, Pearson_coe))
   
 }
 
@@ -76,58 +74,96 @@ pearson_coe <- function(data, threshold = 0) {
 #3.plot a pair of blue histograms with a vertical red line at the mean (one using
 #counts and the other density) for every numerical variable at each number of bins
 #integer specified in the bin vector parameter.
-plotsNum <- function(data, plotswitch, bins=NULL) {
-  data_frame <- data[sapply(data, is.numeric)]
-  for(j in 1:length(bins)){
-    if (plotswitch == "on") {
-      for(i in 1:ncol(data_frame)){
-        print(ggplot(data_frame,aes(x=data_frame[,i],..density..))+
-                geom_histogram(bins=bins[j],fill="blue")+
-                geom_vline(xintercept=mean(data_frame[,i]),color="red")+
-                xlab(colnames(data_frame)[i]))
-        # plot a density histogram for each bin size
-        
-        print(ggplot(data_frame,aes(x=data_frame[,i]))+
-                geom_histogram(bins=bins,fill="blue")+
-                geom_vline(xintercept=mean(data_frame[,i]),color="red")+
-                xlab(colnames(data_frame)[i]))
-        # plot a count histogram for each bin size
-      }
-    }
-    else if (plotswitch == "grid") {
-      plot.new()
-      layout(matrix(c(1:10), 2, 5, byrow = TRUE))
-      for(i in 1:ncol(data_frame)){
-        print(ggplot(data_frame,aes(x=data_frame[,i],..density..))+
-                geom_histogram(bins=bins[j],fill="blue")+
-                geom_vline(xintercept=mean(data_frame[,i]),color="red")+
-                xlab(colnames(data_frame)[i]))
-      }
-      
-      plot.new()
-      layout(matrix(c(1:10), 2, 5, byrow = TRUE))
-      for(i in 1:ncol(data_frame)){
-        print(ggplot(data_frame,aes(x=data_frame[,i]))+
-                geom_histogram(bins=bins[j],fill="blue")+
-                geom_vline(xintercept=mean(data_frame[,i]),color="red")+
-                xlab(colnames(data_frame)[i]))
-      }
-      
-    }
-    else {
+
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+  numPlots = length(plots)
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                     ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+  if (numPlots==1) {
+    print(plots[[1]])
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
     }
   }
 }
 
+plot_density_count <- function(num,switch,vector){
+  if(switch == "on"){
+    for(j in 1:length(vector)){
+      for(i in 1:ncol(num)){
+        mean <- mean(num[,i])
+        p1 <- ggplot(num,aes(x=num[i]),color = "blue")+
+          geom_histogram(fill="blue",bins=vector[j])+
+          ggtitle(paste(colnames(num[i]),vector[j],sep=" bins="))+
+          xlab(colnames(num[i]))+
+          geom_vline(xintercept = mean,col="red")
+        p2 <- ggplot(num,aes(x=num[i],..density..))+
+          geom_histogram(fill="blue",bins=vector[j])+
+          ggtitle(paste(colnames(num[i]),vector[j],sep=" bins="))+
+          xlab(colnames(num[i]))+
+          geom_vline(xintercept = mean,col="red")
+        grid.newpage()
+        pushViewport(viewport(layout = grid.layout(2, 2, heights = unit(c(1, 8), "null"))))
+        title <- paste(colnames(num[i]),vector[j],sep=" bin=")
+        grid.text(title, vp = viewport(layout.pos.row = 1, layout.pos.col = 1:2))
+        print(p1, vp = viewport(layout.pos.row = 2, layout.pos.col = 1))
+        print(p2, vp = viewport(layout.pos.row = 2, layout.pos.col = 2))
+      }
+    }
+  }else{
+    if(switch == "grid"){
+      for(j in 1:length(vector)){
+        grid.newpage()
+        his_count <-list()
+        his_density <- list()
+        for(i in 1:ncol(num)){
+          his_count[[i]] <- ggplot(num, aes_string(colnames(num[i])), color = "blue") + 
+            geom_histogram(fill="blue", bins = vector[j])+ 
+            labs(title= paste(vector[j], "bins"))
+        }
+        multiplot(plotlist = his_count, cols = 2)  
+        for(i in 1:ncol(num)){
+          his_density <- ggplot(num, aes_string(colnames(num[i])), color = "blue") + 
+            geom_histogram(aes(y= ..density..), fill="blue", bins = vector[j])+ 
+            labs(title= paste(vector[j], "bins"))
+        }
+        multiplot(plotlist = his_density, cols = 2)  
+      }
+    }
+  }
+}
+
+
 #4. If the plot switch parameter is "on" or "grid", plot a gray bar
 #graph for every categorical and binary variable.
+is.binary <- function(v) {
+  x <- unique(v)                    
+    #x contains all unique values in v
+  length(x) - sum(is.na(x)) == 2L         
+    #check to see if x only contains 2 distinct values
+}
 plot_gray <- function(data, plotswitch = "off") {
-  dfm_cb <- data[,sapply(data,is.factor)|sapply(data,is.logical)]
+  dfm_cb <- data[,sapply(data,is.factor)|sapply(data,is.logical)|sapply(data,is.binary)]
   #select categorical and binary variable
   if(plotswitch=="on"|plotswitch=="grid"){
     for(i in 1:ncol(dfm_cb)){
-      grid.newpage()
-      p <- ggplot(dfm_cb,aes(x=data[,i]),colour="gray")+
+      p <- ggplot(dfm_cb,aes(x=dfm_cb[,i]),colour="gray")+
         geom_bar()+ xlab(colnames(dfm_cb[i]))
         #plot gray bar for every categorial and binary variable
       print(p)
